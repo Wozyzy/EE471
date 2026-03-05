@@ -1,0 +1,1 @@
+# This scripts is written by Ismail KURU 
