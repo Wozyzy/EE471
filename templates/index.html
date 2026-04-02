@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Azure Text to Speech</title>
+    <title>Voxify | Azure Text to Speech</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,54 +13,428 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   </head>
   <body>
-    <main class="page-shell">
-      <section class="hero-card">
-        <p class="eyebrow">EE471 Flask Demo</p>
-        <h1>Turn text into a spoken audio file.</h1>
-        <p class="lede">
-          Enter a sentence, choose a voice, and generate a WAV file using Azure
-          Speech Services.
-        </p>
+    <div class="page-shell">
+      <div class="page-frame">
+        <header class="hero-banner panel">
+          <div class="hero-copy">
+            <div class="brand-row">
+              <div class="brand-mark">M</div>
+              <span class="brand-name">Voxify</span>
+              <span class="pill pill-dark">AI Text to Speech</span>
+            </div>
+            <h1>Convert text into natural, expressive voice.</h1>
+            <p class="lede">
+              A polished front-end adapted from your JSX concept, now wired to a
+              Flask backend and Azure Speech synthesis.
+            </p>
+          </div>
 
-        {% if error %}
-        <div class="message error">{{ error }}</div>
-        {% endif %}
+          <div class="feature-grid">
+            {% for item in feature_items %}
+            <div class="feature-tile">
+              <div class="feature-icon">{{ loop.index }}</div>
+              <div class="feature-label">{{ item }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </header>
 
-        {% if success %}
-        <div class="message success">{{ success }}</div>
-        {% endif %}
+        <main class="layout-grid">
+          <section class="main-column">
+            <div class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Text Input</p>
+                  <h2>Paste your script and prepare a synthesis run.</h2>
+                </div>
+                <p class="section-copy">
+                  Write directly, inject a demo template, or inspect the SSML
+                  payload that Azure receives.
+                </p>
+              </div>
 
-        <form class="tts-form" method="post" action="{{ url_for('synthesize') }}">
-          <label for="text">Text</label>
-          <textarea
-            id="text"
-            name="text"
-            rows="7"
-            placeholder="Type the text you want Azure to speak..."
-          >{{ text or '' }}</textarea>
+              {% if error %}
+              <div class="message error">{{ error }}</div>
+              {% endif %}
 
-          <label for="voice">Voice name</label>
-          <input
-            id="voice"
-            name="voice"
-            type="text"
-            value="{{ default_voice }}"
-            placeholder="tr-TR-AhmetNeural"
-          />
+              {% if success %}
+              <div class="message success">{{ success }}</div>
+              {% endif %}
 
-          <button type="submit">Generate Audio</button>
-        </form>
+              <form class="tts-form" method="post" action="{{ url_for('synthesize') }}">
+                <div class="tab-strip" role="tablist" aria-label="Text modes">
+                  <button class="tab-button active" type="button" data-tab-target="write-tab">
+                    Write
+                  </button>
+                  <button class="tab-button" type="button" data-tab-target="templates-tab">
+                    Templates
+                  </button>
+                  <button class="tab-button" type="button" data-tab-target="ssml-tab">
+                    SSML
+                  </button>
+                </div>
 
-        {% if audio_url %}
-        <section class="result-card">
-          <h2>Your audio is ready</h2>
-          <audio controls src="{{ audio_url }}"></audio>
-          <a class="download-link" href="{{ audio_url }}" download="{{ filename }}">
-            Download {{ filename }}
-          </a>
-        </section>
-        {% endif %}
-      </section>
-    </main>
+                <div class="tab-panel active" id="write-tab">
+                  <label class="field-label" for="text">Text</label>
+                  <textarea
+                    id="text"
+                    name="text"
+                    rows="10"
+                    placeholder="Type or paste your text here..."
+                  >{{ text }}</textarea>
+                </div>
+
+                <div class="tab-panel" id="templates-tab">
+                  <div class="template-grid">
+                    {% for key, value in demo_texts.items() %}
+                    <button
+                      class="template-card"
+                      type="button"
+                      data-template-value="{{ value }}"
+                    >
+                      <span class="template-title">{{ key|capitalize }}</span>
+                      <span class="template-body">{{ value }}</span>
+                    </button>
+                    {% endfor %}
+                  </div>
+                </div>
+
+                <div class="tab-panel ssml-panel" id="ssml-tab">
+                  <pre><code id="ssml-preview">{{ ssml_preview }}</code></pre>
+                </div>
+
+                <div class="stats-row">
+                  <span class="pill"><span id="char-count">{{ char_count }}</span>&nbsp;characters</span>
+                  <span class="pill"><span id="word-count">{{ word_count }}</span>&nbsp;words</span>
+                  <span class="pill">Estimated <span id="estimated-seconds">{{ estimated_seconds }}</span>&nbsp;sec</span>
+                </div>
+
+                <div class="panel panel-inner voice-studio">
+                  <div class="section-head compact">
+                    <div>
+                      <p class="section-kicker">Voice Studio</p>
+                      <h2>Tune the synthesis settings.</h2>
+                    </div>
+                    <p class="section-copy">
+                      Pick a voice, adjust the speed and pitch, then generate a WAV file.
+                    </p>
+                  </div>
+
+                  <input id="voice-input" type="hidden" name="voice" value="{{ selected_voice }}" />
+
+                  <div class="studio-grid">
+                    <div class="control-group">
+                      <label class="field-label" for="language">Language</label>
+                      <select id="language" name="language">
+                        {% for language in language_options %}
+                        <option
+                          value="{{ language.id }}"
+                          {% if selected_language == language.id %}selected{% endif %}
+                        >
+                          {{ language.name }}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+
+                    <div class="control-group full-width">
+                      <span class="field-label">Voice</span>
+                      <div class="voice-grid" id="voice-grid">
+                        {% for item in voice_options %}
+                        <button
+                          class="voice-card {% if selected_voice == item.id %}active{% endif %}"
+                          type="button"
+                          data-voice-id="{{ item.id }}"
+                          data-language="{{ item.language }}"
+                        >
+                          <span class="voice-name">{{ item.name }}</span>
+                          <span class="voice-tag">{{ item.tag }} · {{ item.id }}</span>
+                        </button>
+                        {% endfor %}
+                      </div>
+                    </div>
+
+                    <div class="control-group">
+                      <div class="slider-head">
+                        <label class="field-label" for="speed">Speed</label>
+                        <span id="speed-value">{{ "%.1f"|format(speed) }}x</span>
+                      </div>
+                      <input
+                        id="speed"
+                        name="speed"
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.1"
+                        value="{{ speed }}"
+                      />
+                    </div>
+
+                    <div class="control-group">
+                      <div class="slider-head">
+                        <label class="field-label" for="pitch">Pitch</label>
+                        <span id="pitch-value">{{ "%.1f"|format(pitch) }}x</span>
+                      </div>
+                      <input
+                        id="pitch"
+                        name="pitch"
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.1"
+                        value="{{ pitch }}"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="preview-card">
+                    <div class="preview-head">
+                      <div>
+                        <div class="preview-title">Live Preview</div>
+                        <div class="preview-subtitle">Frontend waveform adapted for Flask</div>
+                      </div>
+                      <span class="pill pill-dark">Ready</span>
+                    </div>
+
+                    <div class="waveform" id="waveform">
+                      {% for _ in range(28) %}
+                      <span class="wave-bar"></span>
+                      {% endfor %}
+                    </div>
+
+                    <div class="action-row">
+                      <button class="primary-button" type="submit">Generate Audio</button>
+                      {% if audio_url %}
+                      <button class="secondary-button" id="preview-toggle" type="button">
+                        Play Preview
+                      </button>
+                      <a class="secondary-button" href="{{ audio_url }}" download="{{ filename }}">
+                        Download WAV
+                      </a>
+                      {% else %}
+                      <button class="secondary-button" type="button" disabled>
+                        Generate first to preview
+                      </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <aside class="side-column">
+            <div class="panel">
+              <div class="section-head compact">
+                <div>
+                  <p class="section-kicker">Quick Actions</p>
+                  <h2>Useful entry points.</h2>
+                </div>
+              </div>
+              <div class="quick-actions">
+                <button class="secondary-button" type="button" data-template-value="{{ demo_texts['product'] }}">
+                  Start New Voiceover
+                </button>
+                <button class="secondary-button" type="button" data-template-value="{{ demo_texts['podcast'] }}">
+                  Podcast Intro
+                </button>
+                <button class="secondary-button" type="button" data-template-value="{{ demo_texts['narration'] }}">
+                  Story Narration
+                </button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="section-head compact">
+                <div>
+                  <p class="section-kicker">Recent Projects</p>
+                  <h2>Latest audio drafts.</h2>
+                </div>
+              </div>
+              <div class="history-list">
+                {% for item in recent_projects %}
+                <div class="history-item">
+                  <div class="history-title">{{ item.title }}</div>
+                  <div class="history-meta">{{ item.meta }}</div>
+                </div>
+                {% endfor %}
+                {% if filename %}
+                <div class="history-item active">
+                  <div class="history-title">Latest Export</div>
+                  <div class="history-meta">{{ filename }}</div>
+                </div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="section-head compact">
+                <div>
+                  <p class="section-kicker">Why This Layout Works</p>
+                  <h2>Directly based on your JSX draft.</h2>
+                </div>
+              </div>
+              <div class="check-list">
+                {% for point in highlights %}
+                <div class="check-item">
+                  <span class="check-mark">+</span>
+                  <span>{{ point }}</span>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="panel panel-dark">
+              <h2>Backend Connection</h2>
+              <p>
+                This version is already connected to Flask routes and Azure Speech
+                Services. You can keep iterating on the JSX file as a design source.
+              </p>
+            </div>
+          </aside>
+        </main>
+      </div>
+    </div>
+
+    {% if audio_url %}
+    <audio id="preview-audio" src="{{ audio_url }}"></audio>
+    {% endif %}
+
+    <script>
+      const textArea = document.getElementById("text");
+      const ssmlPreview = document.getElementById("ssml-preview");
+      const voiceInput = document.getElementById("voice-input");
+      const languageSelect = document.getElementById("language");
+      const speedInput = document.getElementById("speed");
+      const pitchInput = document.getElementById("pitch");
+      const speedValue = document.getElementById("speed-value");
+      const pitchValue = document.getElementById("pitch-value");
+      const charCount = document.getElementById("char-count");
+      const wordCount = document.getElementById("word-count");
+      const estimatedSeconds = document.getElementById("estimated-seconds");
+      const voiceCards = Array.from(document.querySelectorAll(".voice-card"));
+      const templateButtons = Array.from(document.querySelectorAll("[data-template-value]"));
+      const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
+      const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+      const previewAudio = document.getElementById("preview-audio");
+      const previewToggle = document.getElementById("preview-toggle");
+      const waveform = document.getElementById("waveform");
+
+      function escapeXml(value) {
+        return value
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&apos;");
+      }
+
+      function toPercent(value) {
+        return `${Math.round((Number(value) - 1) * 100)}%`;
+      }
+
+      function setActiveVoice(card) {
+        voiceCards.forEach((item) => item.classList.toggle("active", item === card));
+        voiceInput.value = card.dataset.voiceId;
+        if (languageSelect.value !== card.dataset.language) {
+          languageSelect.value = card.dataset.language;
+        }
+        updateSsmlPreview();
+      }
+
+      function updateSsmlPreview() {
+        if (!ssmlPreview) {
+          return;
+        }
+        ssmlPreview.textContent =
+          `<speak version="1.0" xml:lang="en-US"><voice name="${voiceInput.value}">` +
+          `<prosody rate="${toPercent(speedInput.value)}" pitch="${toPercent(pitchInput.value)}">` +
+          `${escapeXml(textArea.value)}` +
+          `</prosody></voice></speak>`;
+      }
+
+      function updateStats() {
+        const text = textArea.value.trim();
+        const words = text ? text.split(/\s+/).length : 0;
+        charCount.textContent = textArea.value.length;
+        wordCount.textContent = words;
+        estimatedSeconds.textContent = words ? Math.ceil((words / 150) * 60) : 0;
+      }
+
+      function openTab(target) {
+        tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.tabTarget === target));
+        tabPanels.forEach((panel) => panel.classList.toggle("active", panel.id === target));
+      }
+
+      templateButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          textArea.value = button.dataset.templateValue;
+          openTab("write-tab");
+          updateStats();
+          updateSsmlPreview();
+        });
+      });
+
+      voiceCards.forEach((card) => {
+        card.addEventListener("click", () => setActiveVoice(card));
+      });
+
+      languageSelect.addEventListener("change", () => {
+        const matchingCard = voiceCards.find(
+          (card) => card.dataset.language === languageSelect.value
+        );
+        if (matchingCard) {
+          setActiveVoice(matchingCard);
+        }
+      });
+
+      speedInput.addEventListener("input", () => {
+        speedValue.textContent = `${Number(speedInput.value).toFixed(1)}x`;
+        updateSsmlPreview();
+      });
+
+      pitchInput.addEventListener("input", () => {
+        pitchValue.textContent = `${Number(pitchInput.value).toFixed(1)}x`;
+        updateSsmlPreview();
+      });
+
+      textArea.addEventListener("input", () => {
+        updateStats();
+        updateSsmlPreview();
+      });
+
+      tabButtons.forEach((button) => {
+        button.addEventListener("click", () => openTab(button.dataset.tabTarget));
+      });
+
+      if (previewAudio && previewToggle) {
+        previewToggle.addEventListener("click", () => {
+          const playing = !previewAudio.paused;
+          if (playing) {
+            previewAudio.pause();
+          } else {
+            previewAudio.play();
+          }
+        });
+
+        previewAudio.addEventListener("play", () => {
+          previewToggle.textContent = "Pause Preview";
+          waveform.classList.add("playing");
+        });
+
+        previewAudio.addEventListener("pause", () => {
+          previewToggle.textContent = "Play Preview";
+          waveform.classList.remove("playing");
+        });
+
+        previewAudio.addEventListener("ended", () => {
+          previewToggle.textContent = "Play Preview";
+          waveform.classList.remove("playing");
+        });
+      }
+
+      updateStats();
+      updateSsmlPreview();
+    </script>
   </body>
 </html>

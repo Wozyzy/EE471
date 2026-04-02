@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 import azure.cognitiveservices.speech as speechsdk
 from dotenv import load_dotenv
@@ -15,7 +16,31 @@ def get_default_voice() -> str:
     return os.getenv("AZURE_SPEECH_VOICE", DEFAULT_VOICE)
 
 
-def synthesize_text_to_file(text: str, output_path: Path, voice_name: str = DEFAULT_VOICE) -> Path:
+def format_percentage(multiplier: float) -> str:
+    percentage = round((multiplier - 1.0) * 100)
+    return f"{percentage:+d}%"
+
+
+def build_ssml_preview(text: str, voice_name: str, speed: float, pitch: float) -> str:
+    escaped_text = escape(text or "")
+    rate = format_percentage(speed)
+    pitch_value = format_percentage(pitch)
+    return (
+        "<speak version=\"1.0\" xml:lang=\"en-US\">"
+        f"<voice name=\"{voice_name}\">"
+        f"<prosody rate=\"{rate}\" pitch=\"{pitch_value}\">{escaped_text}</prosody>"
+        "</voice>"
+        "</speak>"
+    )
+
+
+def synthesize_text_to_file(
+    text: str,
+    output_path: Path,
+    voice_name: str = DEFAULT_VOICE,
+    speed: float = 1.0,
+    pitch: float = 1.0,
+) -> Path:
     load_dotenv(dotenv_path=DOTENV_PATH)
 
     speech_key = os.getenv("AZURE_SPEECH_KEY")
@@ -34,8 +59,9 @@ def synthesize_text_to_file(text: str, output_path: Path, voice_name: str = DEFA
         speech_config=speech_config,
         audio_config=audio_config,
     )
+    ssml = build_ssml_preview(text=text, voice_name=selected_voice, speed=speed, pitch=pitch)
 
-    result = synthesizer.speak_text_async(text).get()
+    result = synthesizer.speak_ssml_async(ssml).get()
 
     if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
         return output_path
