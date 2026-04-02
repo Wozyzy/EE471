@@ -55,19 +55,6 @@ FEATURES = [
     "Export Audio",
 ]
 
-RECENT_PROJECTS = [
-    {"title": "Podcast Intro", "meta": "English • Jenny • 00:42"},
-    {"title": "YouTube Narration", "meta": "Turkish • Emel • 01:18"},
-    {"title": "App Voiceover", "meta": "English • Guy • 00:27"},
-]
-
-HIGHLIGHTS = [
-    "Clear left-to-right workflow: text input, voice controls, preview, export.",
-    "Strong CTA placement for generation and audio download.",
-    "Direct Azure Speech integration behind a Flask backend.",
-    "Speech-to-text is handled through the same backend with Azure recognition.",
-]
-
 RECOGNITION_LANGUAGE_OPTIONS = [
     {"id": "tr-TR", "name": "Turkish"},
     {"id": "en-US", "name": "English"},
@@ -94,8 +81,6 @@ def render_index(**overrides):
         "language_options": LANGUAGE_OPTIONS,
         "recognition_language_options": RECOGNITION_LANGUAGE_OPTIONS,
         "feature_items": FEATURES,
-        "recent_projects": RECENT_PROJECTS,
-        "highlights": HIGHLIGHTS,
         "text": text,
         "selected_language": selected_language,
         "selected_voice": selected_voice,
@@ -130,8 +115,11 @@ def create_app() -> Flask:
         )
         speed = float(request.form.get("speed", "1.0"))
         pitch = float(request.form.get("pitch", "1.0"))
+        wants_json = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
         if not text:
+            if wants_json:
+                return jsonify({"error": "Please enter text to convert into speech."}), 400
             return render_index(
                 error="Please enter text to convert into speech.",
                 text=text,
@@ -153,6 +141,8 @@ def create_app() -> Flask:
                 pitch=pitch,
             )
         except RuntimeError as exc:
+            if wants_json:
+                return jsonify({"error": str(exc)}), 500
             return render_index(
                 error=str(exc),
                 text=text,
@@ -163,6 +153,14 @@ def create_app() -> Flask:
             ), 500
 
         audio_url = url_for("serve_audio", filename=filename)
+        if wants_json:
+            return jsonify(
+                {
+                    "message": "Audio file generated successfully.",
+                    "audio_url": audio_url,
+                    "filename": filename,
+                }
+            )
         return render_index(
             success="Audio file generated successfully.",
             text=text,

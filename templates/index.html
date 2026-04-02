@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Voxify | Azure Text to Speech</title>
+    <title>Voxify | Azure Speech Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -24,8 +24,8 @@
             </div>
             <h1>Translate text and speech in one studio.</h1>
             <p class="lede">
-              A polished front-end adapted from your JSX concept, now wired to a
-              Flask backend and Azure Speech services for both synthesis and transcription.
+              Text-to-speech and speech-to-text now live side by side in a single
+              Flask interface backed by Azure Speech Services.
             </p>
           </div>
 
@@ -39,731 +39,750 @@
           </div>
         </header>
 
+        <section class="panel top-actions-panel">
+          <div class="section-head compact">
+            <div>
+              <p class="section-kicker">Useful Entry Points</p>
+              <h2>Jump into a starting prompt.</h2>
+            </div>
+          </div>
+          <div class="quick-actions">
+            <button class="secondary-button" type="button" data-template-value="{{ demo_texts['product'] }}">
+              Start New Voiceover
+            </button>
+            <button class="secondary-button" type="button" data-template-value="{{ demo_texts['podcast'] }}">
+              Podcast Intro
+            </button>
+            <button class="secondary-button" type="button" data-template-value="{{ demo_texts['narration'] }}">
+              Story Narration
+            </button>
+          </div>
+        </section>
+
         <main class="layout-grid">
-          <section class="main-column">
-            <div class="panel">
-              <div class="section-head">
-                <div>
-                  <p class="section-kicker">Text To Speech</p>
-                  <h2>Paste your script and prepare a synthesis run.</h2>
-                </div>
-                <p class="section-copy">
-                  Write directly, inject a demo template, or inspect the SSML
-                  payload that Azure receives.
-                </p>
+          <section class="panel studio-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Text To Speech</p>
+                <h2>Write text and generate a WAV file without reloading the page.</h2>
               </div>
-
-              {% if error %}
-              <div class="message error">{{ error }}</div>
-              {% endif %}
-
-              {% if success %}
-              <div class="message success">{{ success }}</div>
-              {% endif %}
-
-              <form class="tts-form" method="post" action="{{ url_for('synthesize') }}">
-                <div class="tab-strip" role="tablist" aria-label="Text modes">
-                  <button class="tab-button active" type="button" data-tab-target="write-tab">
-                    Write
-                  </button>
-                  <button class="tab-button" type="button" data-tab-target="templates-tab">
-                    Templates
-                  </button>
-                  <button class="tab-button" type="button" data-tab-target="ssml-tab">
-                    SSML
-                  </button>
-                </div>
-
-                <div class="tab-panel active" id="write-tab">
-                  <label class="field-label" for="text">Text</label>
-                  <textarea
-                    id="text"
-                    name="text"
-                    rows="10"
-                    placeholder="Type or paste your text here..."
-                  >{{ text }}</textarea>
-                </div>
-
-                <div class="tab-panel" id="templates-tab">
-                  <div class="template-grid">
-                    {% for key, value in demo_texts.items() %}
-                    <button
-                      class="template-card"
-                      type="button"
-                      data-template-value="{{ value }}"
-                    >
-                      <span class="template-title">{{ key|capitalize }}</span>
-                      <span class="template-body">{{ value }}</span>
-                    </button>
-                    {% endfor %}
-                  </div>
-                </div>
-
-                <div class="tab-panel ssml-panel" id="ssml-tab">
-                  <pre><code id="ssml-preview">{{ ssml_preview }}</code></pre>
-                </div>
-
-                <div class="stats-row">
-                  <span class="pill"><span id="char-count">{{ char_count }}</span>&nbsp;characters</span>
-                  <span class="pill"><span id="word-count">{{ word_count }}</span>&nbsp;words</span>
-                  <span class="pill">Estimated <span id="estimated-seconds">{{ estimated_seconds }}</span>&nbsp;sec</span>
-                </div>
-
-                <div class="panel panel-inner voice-studio">
-                  <div class="section-head compact">
-                    <div>
-                      <p class="section-kicker">Voice Studio</p>
-                      <h2>Tune the synthesis settings.</h2>
-                    </div>
-                    <p class="section-copy">
-                      Pick a voice, adjust the speed and pitch, then generate a WAV file.
-                    </p>
-                  </div>
-
-                  <input id="voice-input" type="hidden" name="voice" value="{{ selected_voice }}" />
-
-                  <div class="studio-grid">
-                    <div class="control-group">
-                      <label class="field-label" for="language">Language</label>
-                      <select id="language" name="language">
-                        {% for language in language_options %}
-                        <option
-                          value="{{ language.id }}"
-                          {% if selected_language == language.id %}selected{% endif %}
-                        >
-                          {{ language.name }}
-                        </option>
-                        {% endfor %}
-                      </select>
-                    </div>
-
-                    <div class="control-group full-width">
-                      <span class="field-label">Voice</span>
-                      <div class="voice-grid" id="voice-grid">
-                        {% for item in voice_options %}
-                        <button
-                          class="voice-card {% if selected_voice == item.id %}active{% endif %}"
-                          type="button"
-                          data-voice-id="{{ item.id }}"
-                          data-language="{{ item.language }}"
-                        >
-                          <span class="voice-name">{{ item.name }}</span>
-                          <span class="voice-tag">{{ item.tag }} · {{ item.id }}</span>
-                        </button>
-                        {% endfor %}
-                      </div>
-                    </div>
-
-                    <div class="control-group">
-                      <div class="slider-head">
-                        <label class="field-label" for="speed">Speed</label>
-                        <span id="speed-value">{{ "%.1f"|format(speed) }}x</span>
-                      </div>
-                      <input
-                        id="speed"
-                        name="speed"
-                        type="range"
-                        min="0.5"
-                        max="2"
-                        step="0.1"
-                        value="{{ speed }}"
-                      />
-                    </div>
-
-                    <div class="control-group">
-                      <div class="slider-head">
-                        <label class="field-label" for="pitch">Pitch</label>
-                        <span id="pitch-value">{{ "%.1f"|format(pitch) }}x</span>
-                      </div>
-                      <input
-                        id="pitch"
-                        name="pitch"
-                        type="range"
-                        min="0.5"
-                        max="2"
-                        step="0.1"
-                        value="{{ pitch }}"
-                      />
-                    </div>
-                  </div>
-
-                  <div class="preview-card">
-                    <div class="preview-head">
-                      <div>
-                        <div class="preview-title">Live Preview</div>
-                        <div class="preview-subtitle">Frontend waveform adapted for Flask</div>
-                      </div>
-                      <span class="pill pill-dark">Ready</span>
-                    </div>
-
-                    <div class="waveform" id="waveform">
-                      {% for _ in range(28) %}
-                      <span class="wave-bar"></span>
-                      {% endfor %}
-                    </div>
-
-                    <div class="action-row">
-                      <button class="primary-button" type="submit">Generate Audio</button>
-                      {% if audio_url %}
-                      <button class="secondary-button" id="preview-toggle" type="button">
-                        Play Preview
-                      </button>
-                      <a class="secondary-button" href="{{ audio_url }}" download="{{ filename }}">
-                        Download WAV
-                      </a>
-                      {% else %}
-                      <button class="secondary-button" type="button" disabled>
-                        Generate first to preview
-                      </button>
-                      {% endif %}
-                    </div>
-                  </div>
-                </div>
-              </form>
+              <p class="section-copy">
+                Pick a voice, tweak speed and pitch, then synthesize audio through Flask and Azure.
+              </p>
             </div>
 
-            <div class="panel">
-              <div class="section-head">
-                <div>
-                  <p class="section-kicker">Speech To Text</p>
-                  <h2>Upload or record speech, then turn it into text.</h2>
-                </div>
-                <p class="section-copy">
-                  This panel sends a WAV file to the Flask backend, which passes
-                  it to Azure Speech Recognition and returns the transcript.
-                </p>
+            <div class="message error{% if not error %} hidden{% endif %}" id="tts-error">
+              {{ error or '' }}
+            </div>
+            <div class="message success{% if not success %} hidden{% endif %}" id="tts-success">
+              {{ success or '' }}
+            </div>
+
+            <form class="tts-form" id="tts-form" method="post" action="{{ url_for('synthesize') }}">
+              <div class="tab-strip" role="tablist" aria-label="Text modes">
+                <button class="tab-button active" type="button" data-tab-target="write-tab">
+                  Write
+                </button>
+                <button class="tab-button" type="button" data-tab-target="templates-tab">
+                  Templates
+                </button>
+                <button class="tab-button" type="button" data-tab-target="ssml-tab">
+                  SSML
+                </button>
               </div>
 
-              <div class="stt-grid">
-                <div class="panel panel-inner">
+              <div class="tab-panel active" id="write-tab">
+                <label class="field-label" for="text">Text</label>
+                <textarea
+                  id="text"
+                  name="text"
+                  rows="10"
+                  placeholder="Type or paste your text here..."
+                >{{ text }}</textarea>
+              </div>
+
+              <div class="tab-panel" id="templates-tab">
+                <div class="template-grid">
+                  {% for key, value in demo_texts.items() %}
+                  <button
+                    class="template-card"
+                    type="button"
+                    data-template-value="{{ value }}"
+                  >
+                    <span class="template-title">{{ key|capitalize }}</span>
+                    <span class="template-body">{{ value }}</span>
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="tab-panel ssml-panel" id="ssml-tab">
+                <pre><code id="ssml-preview">{{ ssml_preview }}</code></pre>
+              </div>
+
+              <div class="stats-row">
+                <span class="pill"><span id="char-count">{{ char_count }}</span>&nbsp;characters</span>
+                <span class="pill"><span id="word-count">{{ word_count }}</span>&nbsp;words</span>
+                <span class="pill">Estimated <span id="estimated-seconds">{{ estimated_seconds }}</span>&nbsp;sec</span>
+              </div>
+
+              <div class="panel panel-inner voice-studio">
+                <div class="section-head compact">
+                  <div>
+                    <p class="section-kicker">Voice Studio</p>
+                    <h2>Control the generated voice.</h2>
+                  </div>
+                </div>
+
+                <input id="voice-input" type="hidden" name="voice" value="{{ selected_voice }}" />
+
+                <div class="studio-grid">
                   <div class="control-group">
-                    <label class="field-label" for="recognition-language">Recognition Language</label>
-                    <select id="recognition-language" name="recognition-language">
-                      {% for item in recognition_language_options %}
+                    <label class="field-label" for="language">Language</label>
+                    <select id="language" name="language">
+                      {% for language in language_options %}
                       <option
-                        value="{{ item.id }}"
-                        {% if recognition_language == item.id %}selected{% endif %}
+                        value="{{ language.id }}"
+                        {% if selected_language == language.id %}selected{% endif %}
                       >
-                        {{ item.name }}
+                        {{ language.name }}
                       </option>
                       {% endfor %}
                     </select>
                   </div>
 
-                  <div class="upload-box">
-                    <div class="upload-title">Audio Input</div>
-                    <p class="upload-copy">
-                      Upload a WAV file or record directly from your microphone.
-                    </p>
-                    <input id="audio-file" type="file" accept=".wav,audio/wav" />
-                    <div class="record-actions">
-                      <button class="secondary-button" id="record-start" type="button">
-                        Start Recording
+                  <div class="control-group full-width">
+                    <span class="field-label">Voice</span>
+                    <div class="voice-grid">
+                      {% for item in voice_options %}
+                      <button
+                        class="voice-card {% if selected_voice == item.id %}active{% endif %}"
+                        type="button"
+                        data-voice-id="{{ item.id }}"
+                        data-language="{{ item.language }}"
+                      >
+                        <span class="voice-name">{{ item.name }}</span>
+                        <span class="voice-tag">{{ item.tag }} · {{ item.id }}</span>
                       </button>
-                      <button class="secondary-button" id="record-stop" type="button" disabled>
-                        Stop Recording
-                      </button>
+                      {% endfor %}
                     </div>
-                    <div class="record-status" id="record-status">
-                      Microphone idle. Upload a WAV file or start recording.
+                  </div>
+
+                  <div class="control-group">
+                    <div class="slider-head">
+                      <label class="field-label" for="speed">Speed</label>
+                      <span id="speed-value">{{ "%.1f"|format(speed) }}x</span>
                     </div>
-                    <audio id="stt-audio-preview" controls hidden></audio>
+                    <input
+                      id="speed"
+                      name="speed"
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.1"
+                      value="{{ speed }}"
+                    />
+                  </div>
+
+                  <div class="control-group">
+                    <div class="slider-head">
+                      <label class="field-label" for="pitch">Pitch</label>
+                      <span id="pitch-value">{{ "%.1f"|format(pitch) }}x</span>
+                    </div>
+                    <input
+                      id="pitch"
+                      name="pitch"
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.1"
+                      value="{{ pitch }}"
+                    />
+                  </div>
+                </div>
+
+                <div class="preview-card">
+                  <div class="preview-head">
+                    <div>
+                      <div class="preview-title">Live Preview</div>
+                      <div class="preview-subtitle">Generated audio appears here after synthesis.</div>
+                    </div>
+                    <span class="pill pill-dark" id="tts-status-pill">Ready</span>
+                  </div>
+
+                  <div class="waveform" id="waveform">
+                    {% for _ in range(28) %}
+                    <span class="wave-bar"></span>
+                    {% endfor %}
                   </div>
 
                   <div class="action-row">
-                    <button class="primary-button" id="transcribe-button" type="button">
-                      Transcribe Audio
+                    <button class="primary-button" id="generate-audio-button" type="submit">
+                      Generate Audio
                     </button>
-                    <button class="secondary-button" id="use-transcript-button" type="button" disabled>
-                      Use As TTS Input
+                    <button
+                      class="secondary-button"
+                      id="preview-toggle"
+                      type="button"
+                      {% if not audio_url %}disabled{% endif %}
+                    >
+                      Play Preview
                     </button>
+                    <a
+                      class="secondary-button{% if not audio_url %} disabled{% endif %}"
+                      id="download-link"
+                      href="{{ audio_url or '#' }}"
+                      {% if audio_url %}download="{{ filename }}"{% endif %}
+                    >
+                      Download WAV
+                    </a>
                   </div>
-                </div>
 
-                <div class="panel panel-inner">
-                  <div class="section-head compact">
-                    <div>
-                      <p class="section-kicker">Transcript Output</p>
-                      <h2>Recognition result</h2>
+                  <div class="generated-output{% if not audio_url %} hidden{% endif %}" id="generated-output">
+                    <audio id="generated-audio-player" controls {% if audio_url %}src="{{ audio_url }}"{% endif %}></audio>
+                    <div class="record-status" id="generated-filename">
+                      {% if filename %}Latest export: {{ filename }}{% endif %}
                     </div>
-                    <span class="pill" id="stt-status-pill">Ready</span>
                   </div>
-
-                  <div class="message error hidden" id="transcription-error"></div>
-                  <div class="message success hidden" id="transcription-success"></div>
-
-                  <label class="field-label" for="transcript-output">Transcript</label>
-                  <textarea
-                    id="transcript-output"
-                    class="result-textarea"
-                    rows="10"
-                    placeholder="Your transcribed text will appear here..."
-                    readonly
-                  ></textarea>
                 </div>
               </div>
-            </div>
+            </form>
           </section>
 
-          <aside class="side-column">
-            <div class="panel">
-              <div class="section-head compact">
-                <div>
-                  <p class="section-kicker">Quick Actions</p>
-                  <h2>Useful entry points.</h2>
-                </div>
+          <section class="panel studio-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-kicker">Speech To Text</p>
+                <h2>Upload or record speech, then turn it into text.</h2>
               </div>
-              <div class="quick-actions">
-                <button class="secondary-button" type="button" data-template-value="{{ demo_texts['product'] }}">
-                  Start New Voiceover
-                </button>
-                <button class="secondary-button" type="button" data-template-value="{{ demo_texts['podcast'] }}">
-                  Podcast Intro
-                </button>
-                <button class="secondary-button" type="button" data-template-value="{{ demo_texts['narration'] }}">
-                  Story Narration
-                </button>
-              </div>
-            </div>
-
-            <div class="panel">
-              <div class="section-head compact">
-                <div>
-                  <p class="section-kicker">Recent Projects</p>
-                  <h2>Latest audio drafts.</h2>
-                </div>
-              </div>
-              <div class="history-list">
-                {% for item in recent_projects %}
-                <div class="history-item">
-                  <div class="history-title">{{ item.title }}</div>
-                  <div class="history-meta">{{ item.meta }}</div>
-                </div>
-                {% endfor %}
-                {% if filename %}
-                <div class="history-item active">
-                  <div class="history-title">Latest Export</div>
-                  <div class="history-meta">{{ filename }}</div>
-                </div>
-                {% endif %}
-              </div>
-            </div>
-
-            <div class="panel">
-              <div class="section-head compact">
-                <div>
-                  <p class="section-kicker">Why This Layout Works</p>
-                  <h2>Directly based on your JSX draft.</h2>
-                </div>
-              </div>
-              <div class="check-list">
-                {% for point in highlights %}
-                <div class="check-item">
-                  <span class="check-mark">+</span>
-                  <span>{{ point }}</span>
-                </div>
-                {% endfor %}
-              </div>
-            </div>
-
-            <div class="panel panel-dark">
-              <h2>Backend Connection</h2>
-              <p>
-                This version is already connected to Flask routes and Azure Speech
-                Services. You can keep iterating on the JSX file as a design source.
+              <p class="section-copy">
+                This panel sends a WAV file to Flask, which forwards it to Azure Speech Recognition.
               </p>
             </div>
-          </aside>
+
+            <div class="panel panel-inner">
+              <div class="control-group">
+                <label class="field-label" for="recognition-language">Recognition Language</label>
+                <select id="recognition-language" name="recognition-language">
+                  {% for item in recognition_language_options %}
+                  <option
+                    value="{{ item.id }}"
+                    {% if recognition_language == item.id %}selected{% endif %}
+                  >
+                    {{ item.name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="upload-box">
+                <div class="upload-title">Audio Input</div>
+                <p class="upload-copy">
+                  Upload a WAV file or record directly from your microphone.
+                </p>
+                <input id="audio-file" type="file" accept=".wav,audio/wav" />
+                <div class="record-actions">
+                  <button class="secondary-button" id="record-start" type="button">
+                    Start Recording
+                  </button>
+                  <button class="secondary-button" id="record-stop" type="button" disabled>
+                    Stop Recording
+                  </button>
+                </div>
+                <div class="record-status" id="record-status">
+                  Microphone idle. Upload a WAV file or start recording.
+                </div>
+                <audio id="stt-audio-preview" controls hidden></audio>
+              </div>
+
+              <div class="action-row">
+                <button class="primary-button" id="transcribe-button" type="button">
+                  Transcribe Audio
+                </button>
+                <button class="secondary-button" id="use-transcript-button" type="button" disabled>
+                  Use As TTS Input
+                </button>
+              </div>
+            </div>
+
+            <div class="panel panel-inner">
+              <div class="section-head compact">
+                <div>
+                  <p class="section-kicker">Transcript Output</p>
+                  <h2>Recognition result</h2>
+                </div>
+                <span class="pill" id="stt-status-pill">Ready</span>
+              </div>
+
+              <div class="message error hidden" id="transcription-error"></div>
+              <div class="message success hidden" id="transcription-success"></div>
+
+              <label class="field-label" for="transcript-output">Transcript</label>
+              <textarea
+                id="transcript-output"
+                class="result-textarea"
+                rows="10"
+                placeholder="Your transcribed text will appear here..."
+                readonly
+              ></textarea>
+            </div>
+          </section>
         </main>
       </div>
     </div>
 
-    {% if audio_url %}
-    <audio id="preview-audio" src="{{ audio_url }}"></audio>
-    {% endif %}
-
     <script>
-      const textArea = document.getElementById("text");
-      const ssmlPreview = document.getElementById("ssml-preview");
-      const voiceInput = document.getElementById("voice-input");
-      const languageSelect = document.getElementById("language");
-      const speedInput = document.getElementById("speed");
-      const pitchInput = document.getElementById("pitch");
-      const speedValue = document.getElementById("speed-value");
-      const pitchValue = document.getElementById("pitch-value");
-      const charCount = document.getElementById("char-count");
-      const wordCount = document.getElementById("word-count");
-      const estimatedSeconds = document.getElementById("estimated-seconds");
-      const voiceCards = Array.from(document.querySelectorAll(".voice-card"));
-      const templateButtons = Array.from(document.querySelectorAll("[data-template-value]"));
-      const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
-      const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
-      const previewAudio = document.getElementById("preview-audio");
-      const previewToggle = document.getElementById("preview-toggle");
-      const waveform = document.getElementById("waveform");
-      const recognitionLanguage = document.getElementById("recognition-language");
-      const audioFileInput = document.getElementById("audio-file");
-      const sttAudioPreview = document.getElementById("stt-audio-preview");
-      const recordStart = document.getElementById("record-start");
-      const recordStop = document.getElementById("record-stop");
-      const recordStatus = document.getElementById("record-status");
-      const transcribeButton = document.getElementById("transcribe-button");
-      const transcriptOutput = document.getElementById("transcript-output");
-      const transcriptionError = document.getElementById("transcription-error");
-      const transcriptionSuccess = document.getElementById("transcription-success");
-      const useTranscriptButton = document.getElementById("use-transcript-button");
-      const sttStatusPill = document.getElementById("stt-status-pill");
+      document.addEventListener("DOMContentLoaded", () => {
+        const ttsForm = document.getElementById("tts-form");
+        const textArea = document.getElementById("text");
+        const ssmlPreview = document.getElementById("ssml-preview");
+        const voiceInput = document.getElementById("voice-input");
+        const languageSelect = document.getElementById("language");
+        const speedInput = document.getElementById("speed");
+        const pitchInput = document.getElementById("pitch");
+        const speedValue = document.getElementById("speed-value");
+        const pitchValue = document.getElementById("pitch-value");
+        const charCount = document.getElementById("char-count");
+        const wordCount = document.getElementById("word-count");
+        const estimatedSeconds = document.getElementById("estimated-seconds");
+        const voiceCards = Array.from(document.querySelectorAll(".voice-card"));
+        const templateButtons = Array.from(document.querySelectorAll("[data-template-value]"));
+        const tabButtons = Array.from(document.querySelectorAll(".tab-button"));
+        const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+        const waveform = document.getElementById("waveform");
+        const generatedAudioPlayer = document.getElementById("generated-audio-player");
+        const generatedOutput = document.getElementById("generated-output");
+        const generatedFilename = document.getElementById("generated-filename");
+        const previewToggle = document.getElementById("preview-toggle");
+        const downloadLink = document.getElementById("download-link");
+        const ttsError = document.getElementById("tts-error");
+        const ttsSuccess = document.getElementById("tts-success");
+        const generateAudioButton = document.getElementById("generate-audio-button");
+        const ttsStatusPill = document.getElementById("tts-status-pill");
 
-      let recordedAudioFile = null;
-      let recordingStream = null;
-      let recordingContext = null;
-      let recordingSource = null;
-      let recordingProcessor = null;
-      let recordingChunks = [];
-      let recordingSampleRate = 44100;
+        const recognitionLanguage = document.getElementById("recognition-language");
+        const audioFileInput = document.getElementById("audio-file");
+        const sttAudioPreview = document.getElementById("stt-audio-preview");
+        const recordStart = document.getElementById("record-start");
+        const recordStop = document.getElementById("record-stop");
+        const recordStatus = document.getElementById("record-status");
+        const transcribeButton = document.getElementById("transcribe-button");
+        const transcriptOutput = document.getElementById("transcript-output");
+        const transcriptionError = document.getElementById("transcription-error");
+        const transcriptionSuccess = document.getElementById("transcription-success");
+        const useTranscriptButton = document.getElementById("use-transcript-button");
+        const sttStatusPill = document.getElementById("stt-status-pill");
 
-      function escapeXml(value) {
-        return value
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&apos;");
-      }
+        let recordedAudioFile = null;
+        let recordingStream = null;
+        let recordingContext = null;
+        let recordingSource = null;
+        let recordingProcessor = null;
+        let recordingChunks = [];
+        let recordingSampleRate = 44100;
 
-      function toPercent(value) {
-        return `${Math.round((Number(value) - 1) * 100)}%`;
-      }
-
-      function showMessage(element, message) {
-        element.textContent = message;
-        element.classList.remove("hidden");
-      }
-
-      function hideMessage(element) {
-        element.textContent = "";
-        element.classList.add("hidden");
-      }
-
-      function setActiveVoice(card) {
-        voiceCards.forEach((item) => item.classList.toggle("active", item === card));
-        voiceInput.value = card.dataset.voiceId;
-        if (languageSelect.value !== card.dataset.language) {
-          languageSelect.value = card.dataset.language;
-        }
-        updateSsmlPreview();
-      }
-
-      function updateSsmlPreview() {
-        if (!ssmlPreview) {
-          return;
-        }
-        ssmlPreview.textContent =
-          `<speak version="1.0" xml:lang="en-US"><voice name="${voiceInput.value}">` +
-          `<prosody rate="${toPercent(speedInput.value)}" pitch="${toPercent(pitchInput.value)}">` +
-          `${escapeXml(textArea.value)}` +
-          `</prosody></voice></speak>`;
-      }
-
-      function setSttStatus(label) {
-        sttStatusPill.textContent = label;
-      }
-
-      function updateStats() {
-        const text = textArea.value.trim();
-        const words = text ? text.split(/\s+/).length : 0;
-        charCount.textContent = textArea.value.length;
-        wordCount.textContent = words;
-        estimatedSeconds.textContent = words ? Math.ceil((words / 150) * 60) : 0;
-      }
-
-      function openTab(target) {
-        tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.tabTarget === target));
-        tabPanels.forEach((panel) => panel.classList.toggle("active", panel.id === target));
-      }
-
-      function mergeBuffers(buffers) {
-        const totalLength = buffers.reduce((sum, buffer) => sum + buffer.length, 0);
-        const result = new Float32Array(totalLength);
-        let offset = 0;
-
-        buffers.forEach((buffer) => {
-          result.set(buffer, offset);
-          offset += buffer.length;
-        });
-
-        return result;
-      }
-
-      function floatTo16BitPCM(view, offset, input) {
-        for (let index = 0; index < input.length; index += 1) {
-          const sample = Math.max(-1, Math.min(1, input[index]));
-          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-          offset += 2;
-        }
-      }
-
-      function writeString(view, offset, value) {
-        for (let index = 0; index < value.length; index += 1) {
-          view.setUint8(offset + index, value.charCodeAt(index));
-        }
-      }
-
-      function encodeWav(samples, sampleRate) {
-        const buffer = new ArrayBuffer(44 + samples.length * 2);
-        const view = new DataView(buffer);
-
-        writeString(view, 0, "RIFF");
-        view.setUint32(4, 36 + samples.length * 2, true);
-        writeString(view, 8, "WAVE");
-        writeString(view, 12, "fmt ");
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, 1, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * 2, true);
-        view.setUint16(32, 2, true);
-        view.setUint16(34, 16, true);
-        writeString(view, 36, "data");
-        view.setUint32(40, samples.length * 2, true);
-        floatTo16BitPCM(view, 44, samples);
-
-        return new Blob([view], { type: "audio/wav" });
-      }
-
-      async function startRecording() {
-        hideMessage(transcriptionError);
-        hideMessage(transcriptionSuccess);
-
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          showMessage(transcriptionError, "This browser does not support microphone recording.");
-          return;
+        function escapeXml(value) {
+          return value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&apos;");
         }
 
-        recordedAudioFile = null;
-        audioFileInput.value = "";
-        recordingChunks = [];
-
-        recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        recordingContext = new AudioContext();
-        recordingSampleRate = recordingContext.sampleRate;
-        recordingSource = recordingContext.createMediaStreamSource(recordingStream);
-        recordingProcessor = recordingContext.createScriptProcessor(4096, 1, 1);
-
-        recordingProcessor.onaudioprocess = (event) => {
-          const channelData = event.inputBuffer.getChannelData(0);
-          recordingChunks.push(new Float32Array(channelData));
-        };
-
-        recordingSource.connect(recordingProcessor);
-        recordingProcessor.connect(recordingContext.destination);
-
-        recordStart.disabled = true;
-        recordStop.disabled = false;
-        recordStatus.textContent = "Recording in progress...";
-        setSttStatus("Recording");
-      }
-
-      async function stopRecording() {
-        if (!recordingProcessor || !recordingContext || !recordingStream) {
-          return;
+        function toPercent(value) {
+          return `${Math.round((Number(value) - 1) * 100)}%`;
         }
 
-        recordingProcessor.disconnect();
-        recordingSource.disconnect();
-        recordingStream.getTracks().forEach((track) => track.stop());
-        await recordingContext.close();
-
-        const mergedSamples = mergeBuffers(recordingChunks);
-        const wavBlob = encodeWav(mergedSamples, recordingSampleRate);
-        recordedAudioFile = new File([wavBlob], "recording.wav", { type: "audio/wav" });
-
-        sttAudioPreview.src = URL.createObjectURL(wavBlob);
-        sttAudioPreview.hidden = false;
-
-        recordStart.disabled = false;
-        recordStop.disabled = true;
-        recordStatus.textContent = "Recording ready. You can now transcribe it.";
-        setSttStatus("Recorded");
-
-        recordingChunks = [];
-        recordingStream = null;
-        recordingContext = null;
-        recordingSource = null;
-        recordingProcessor = null;
-      }
-
-      function getSelectedAudioFile() {
-        if (recordedAudioFile) {
-          return recordedAudioFile;
-        }
-        return audioFileInput.files && audioFileInput.files[0] ? audioFileInput.files[0] : null;
-      }
-
-      async function transcribeAudio() {
-        hideMessage(transcriptionError);
-        hideMessage(transcriptionSuccess);
-
-        const selectedFile = getSelectedAudioFile();
-        if (!selectedFile) {
-          showMessage(transcriptionError, "Choose a WAV file or record audio first.");
-          return;
+        function showMessage(element, message) {
+          element.textContent = message;
+          element.classList.remove("hidden");
         }
 
-        if (!selectedFile.name.toLowerCase().endsWith(".wav")) {
-          showMessage(transcriptionError, "Only WAV audio files are supported in this version.");
-          return;
+        function hideMessage(element) {
+          element.textContent = "";
+          element.classList.add("hidden");
         }
 
-        const formData = new FormData();
-        formData.append("audio_file", selectedFile);
-        formData.append("recognition_language", recognitionLanguage.value);
+        function setTtsStatus(label) {
+          ttsStatusPill.textContent = label;
+        }
 
-        transcribeButton.disabled = true;
-        transcribeButton.textContent = "Transcribing...";
-        setSttStatus("Working");
+        function setSttStatus(label) {
+          sttStatusPill.textContent = label;
+        }
 
-        try {
-          const response = await fetch("/transcribe", {
-            method: "POST",
-            body: formData,
+        function setActiveVoice(card) {
+          voiceCards.forEach((item) => item.classList.toggle("active", item === card));
+          voiceInput.value = card.dataset.voiceId;
+          if (languageSelect.value !== card.dataset.language) {
+            languageSelect.value = card.dataset.language;
+          }
+          updateSsmlPreview();
+        }
+
+        function updateSsmlPreview() {
+          ssmlPreview.textContent =
+            `<speak version="1.0" xml:lang="en-US"><voice name="${voiceInput.value}">` +
+            `<prosody rate="${toPercent(speedInput.value)}" pitch="${toPercent(pitchInput.value)}">` +
+            `${escapeXml(textArea.value)}` +
+            `</prosody></voice></speak>`;
+        }
+
+        function updateStats() {
+          const text = textArea.value.trim();
+          const words = text ? text.split(/\s+/).length : 0;
+          charCount.textContent = textArea.value.length;
+          wordCount.textContent = words;
+          estimatedSeconds.textContent = words ? Math.ceil((words / 150) * 60) : 0;
+        }
+
+        function openTab(target) {
+          tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.tabTarget === target));
+          tabPanels.forEach((panel) => panel.classList.toggle("active", panel.id === target));
+        }
+
+        async function submitTtsForm(event) {
+          event.preventDefault();
+          hideMessage(ttsError);
+          hideMessage(ttsSuccess);
+          generateAudioButton.disabled = true;
+          generateAudioButton.textContent = "Generating...";
+          setTtsStatus("Working");
+
+          try {
+            const response = await fetch(ttsForm.action, {
+              method: "POST",
+              headers: { "X-Requested-With": "XMLHttpRequest" },
+              body: new FormData(ttsForm),
+            });
+            const payload = await response.json();
+
+            if (!response.ok) {
+              throw new Error(payload.error || "Audio generation failed.");
+            }
+
+            generatedAudioPlayer.src = payload.audio_url;
+            generatedAudioPlayer.load();
+            generatedOutput.classList.remove("hidden");
+            previewToggle.disabled = false;
+            previewToggle.textContent = "Play Preview";
+            downloadLink.href = payload.audio_url;
+            downloadLink.download = payload.filename;
+            downloadLink.classList.remove("disabled");
+            generatedFilename.textContent = `Latest export: ${payload.filename}`;
+            waveform.classList.remove("playing");
+            showMessage(ttsSuccess, payload.message || "Audio file generated successfully.");
+            setTtsStatus("Ready");
+          } catch (error) {
+            showMessage(ttsError, error.message);
+            setTtsStatus("Error");
+          } finally {
+            generateAudioButton.disabled = false;
+            generateAudioButton.textContent = "Generate Audio";
+          }
+        }
+
+        function mergeBuffers(buffers) {
+          const totalLength = buffers.reduce((sum, buffer) => sum + buffer.length, 0);
+          const result = new Float32Array(totalLength);
+          let offset = 0;
+
+          buffers.forEach((buffer) => {
+            result.set(buffer, offset);
+            offset += buffer.length;
           });
-          const payload = await response.json();
 
-          if (!response.ok) {
-            throw new Error(payload.error || "Transcription request failed.");
+          return result;
+        }
+
+        function floatTo16BitPCM(view, offset, input) {
+          for (let index = 0; index < input.length; index += 1) {
+            const sample = Math.max(-1, Math.min(1, input[index]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+            offset += 2;
+          }
+        }
+
+        function writeString(view, offset, value) {
+          for (let index = 0; index < value.length; index += 1) {
+            view.setUint8(offset + index, value.charCodeAt(index));
+          }
+        }
+
+        function encodeWav(samples, sampleRate) {
+          const buffer = new ArrayBuffer(44 + samples.length * 2);
+          const view = new DataView(buffer);
+
+          writeString(view, 0, "RIFF");
+          view.setUint32(4, 36 + samples.length * 2, true);
+          writeString(view, 8, "WAVE");
+          writeString(view, 12, "fmt ");
+          view.setUint32(16, 16, true);
+          view.setUint16(20, 1, true);
+          view.setUint16(22, 1, true);
+          view.setUint32(24, sampleRate, true);
+          view.setUint32(28, sampleRate * 2, true);
+          view.setUint16(32, 2, true);
+          view.setUint16(34, 16, true);
+          writeString(view, 36, "data");
+          view.setUint32(40, samples.length * 2, true);
+          floatTo16BitPCM(view, 44, samples);
+
+          return new Blob([view], { type: "audio/wav" });
+        }
+
+        async function startRecording() {
+          hideMessage(transcriptionError);
+          hideMessage(transcriptionSuccess);
+
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showMessage(transcriptionError, "This browser does not support microphone recording.");
+            return;
           }
 
-          transcriptOutput.value = payload.transcript || "";
-          useTranscriptButton.disabled = !payload.transcript;
-          showMessage(transcriptionSuccess, "Transcription completed successfully.");
-          setSttStatus("Done");
-        } catch (error) {
-          showMessage(transcriptionError, error.message);
-          setSttStatus("Error");
-        } finally {
-          transcribeButton.disabled = false;
-          transcribeButton.textContent = "Transcribe Audio";
-        }
-      }
+          recordedAudioFile = null;
+          audioFileInput.value = "";
+          recordingChunks = [];
 
-      templateButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-          textArea.value = button.dataset.templateValue;
-          openTab("write-tab");
+          recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContextCtor) {
+            throw new Error("This browser does not support in-browser audio recording.");
+          }
+
+          recordingContext = new AudioContextCtor();
+          recordingSampleRate = recordingContext.sampleRate;
+          recordingSource = recordingContext.createMediaStreamSource(recordingStream);
+          recordingProcessor = recordingContext.createScriptProcessor(4096, 1, 1);
+
+          recordingProcessor.onaudioprocess = (event) => {
+            const channelData = event.inputBuffer.getChannelData(0);
+            recordingChunks.push(new Float32Array(channelData));
+          };
+
+          recordingSource.connect(recordingProcessor);
+          recordingProcessor.connect(recordingContext.destination);
+
+          recordStart.disabled = true;
+          recordStop.disabled = false;
+          recordStatus.textContent = "Recording in progress...";
+          setSttStatus("Recording");
+        }
+
+        async function stopRecording() {
+          if (!recordingProcessor || !recordingContext || !recordingStream) {
+            return;
+          }
+
+          recordingProcessor.disconnect();
+          recordingSource.disconnect();
+          recordingStream.getTracks().forEach((track) => track.stop());
+          await recordingContext.close();
+
+          const mergedSamples = mergeBuffers(recordingChunks);
+          const wavBlob = encodeWav(mergedSamples, recordingSampleRate);
+          recordedAudioFile = new File([wavBlob], "recording.wav", { type: "audio/wav" });
+
+          sttAudioPreview.src = URL.createObjectURL(wavBlob);
+          sttAudioPreview.hidden = false;
+          hideMessage(transcriptionError);
+          hideMessage(transcriptionSuccess);
+          transcriptOutput.value = "";
+          useTranscriptButton.disabled = true;
+
+          recordStart.disabled = false;
+          recordStop.disabled = true;
+          recordStatus.textContent = "Recording ready. You can now transcribe it.";
+          setSttStatus("Recorded");
+
+          recordingChunks = [];
+          recordingStream = null;
+          recordingContext = null;
+          recordingSource = null;
+          recordingProcessor = null;
+        }
+
+        function getSelectedAudioFile() {
+          if (recordedAudioFile) {
+            return recordedAudioFile;
+          }
+          return audioFileInput.files && audioFileInput.files[0] ? audioFileInput.files[0] : null;
+        }
+
+        async function transcribeAudio() {
+          hideMessage(transcriptionError);
+          hideMessage(transcriptionSuccess);
+          transcriptOutput.value = "";
+          useTranscriptButton.disabled = true;
+
+          const selectedFile = getSelectedAudioFile();
+          if (!selectedFile) {
+            showMessage(transcriptionError, "Choose a WAV file or record audio first.");
+            return;
+          }
+
+          if (!selectedFile.name.toLowerCase().endsWith(".wav")) {
+            showMessage(transcriptionError, "Only WAV audio files are supported in this version.");
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append("audio_file", selectedFile);
+          formData.append("recognition_language", recognitionLanguage.value);
+
+          transcribeButton.disabled = true;
+          transcribeButton.textContent = "Transcribing...";
+          setSttStatus("Working");
+
+          try {
+            const response = await fetch("/transcribe", {
+              method: "POST",
+              body: formData,
+            });
+            const payload = await response.json();
+
+            if (!response.ok) {
+              throw new Error(payload.error || "Transcription request failed.");
+            }
+
+            transcriptOutput.value = payload.transcript || "";
+            useTranscriptButton.disabled = !payload.transcript;
+            showMessage(transcriptionSuccess, "Transcription completed successfully.");
+            setSttStatus("Done");
+          } catch (error) {
+            transcriptOutput.value = "";
+            useTranscriptButton.disabled = true;
+            showMessage(transcriptionError, error.message);
+            setSttStatus("Error");
+          } finally {
+            transcribeButton.disabled = false;
+            transcribeButton.textContent = "Transcribe Audio";
+          }
+        }
+
+        templateButtons.forEach((button) => {
+          button.addEventListener("click", () => {
+            textArea.value = button.dataset.templateValue;
+            openTab("write-tab");
+            updateStats();
+            updateSsmlPreview();
+          });
+        });
+
+        voiceCards.forEach((card) => {
+          card.addEventListener("click", () => setActiveVoice(card));
+        });
+
+        languageSelect.addEventListener("change", () => {
+          const matchingCard = voiceCards.find(
+            (card) => card.dataset.language === languageSelect.value
+          );
+          if (matchingCard) {
+            setActiveVoice(matchingCard);
+          }
+        });
+
+        speedInput.addEventListener("input", () => {
+          speedValue.textContent = `${Number(speedInput.value).toFixed(1)}x`;
+          updateSsmlPreview();
+        });
+
+        pitchInput.addEventListener("input", () => {
+          pitchValue.textContent = `${Number(pitchInput.value).toFixed(1)}x`;
+          updateSsmlPreview();
+        });
+
+        textArea.addEventListener("input", () => {
           updateStats();
           updateSsmlPreview();
         });
-      });
 
-      voiceCards.forEach((card) => {
-        card.addEventListener("click", () => setActiveVoice(card));
-      });
+        tabButtons.forEach((button) => {
+          button.addEventListener("click", () => openTab(button.dataset.tabTarget));
+        });
 
-      languageSelect.addEventListener("change", () => {
-        const matchingCard = voiceCards.find(
-          (card) => card.dataset.language === languageSelect.value
-        );
-        if (matchingCard) {
-          setActiveVoice(matchingCard);
-        }
-      });
+        ttsForm.addEventListener("submit", submitTtsForm);
 
-      speedInput.addEventListener("input", () => {
-        speedValue.textContent = `${Number(speedInput.value).toFixed(1)}x`;
-        updateSsmlPreview();
-      });
-
-      pitchInput.addEventListener("input", () => {
-        pitchValue.textContent = `${Number(pitchInput.value).toFixed(1)}x`;
-        updateSsmlPreview();
-      });
-
-      textArea.addEventListener("input", () => {
-        updateStats();
-        updateSsmlPreview();
-      });
-
-      tabButtons.forEach((button) => {
-        button.addEventListener("click", () => openTab(button.dataset.tabTarget));
-      });
-
-      if (previewAudio && previewToggle) {
         previewToggle.addEventListener("click", () => {
-          const playing = !previewAudio.paused;
+          const playing = !generatedAudioPlayer.paused;
           if (playing) {
-            previewAudio.pause();
+            generatedAudioPlayer.pause();
           } else {
-            previewAudio.play();
+            generatedAudioPlayer.play();
           }
         });
 
-        previewAudio.addEventListener("play", () => {
+        generatedAudioPlayer.addEventListener("play", () => {
           previewToggle.textContent = "Pause Preview";
           waveform.classList.add("playing");
         });
 
-        previewAudio.addEventListener("pause", () => {
+        generatedAudioPlayer.addEventListener("pause", () => {
           previewToggle.textContent = "Play Preview";
           waveform.classList.remove("playing");
         });
 
-        previewAudio.addEventListener("ended", () => {
+        generatedAudioPlayer.addEventListener("ended", () => {
           previewToggle.textContent = "Play Preview";
           waveform.classList.remove("playing");
         });
-      }
 
-      audioFileInput.addEventListener("change", () => {
-        const file = getSelectedAudioFile();
-        recordedAudioFile = null;
+        audioFileInput.addEventListener("change", () => {
+          recordedAudioFile = null;
+          const file = getSelectedAudioFile();
 
-        if (!file) {
-          sttAudioPreview.hidden = true;
-          sttAudioPreview.removeAttribute("src");
-          recordStatus.textContent = "Microphone idle. Upload a WAV file or start recording.";
-          setSttStatus("Ready");
-          return;
-        }
+          if (!file) {
+            sttAudioPreview.hidden = true;
+            sttAudioPreview.removeAttribute("src");
+            recordStatus.textContent = "Microphone idle. Upload a WAV file or start recording.";
+            setSttStatus("Ready");
+            return;
+          }
 
-        sttAudioPreview.src = URL.createObjectURL(file);
-        sttAudioPreview.hidden = false;
-        recordStatus.textContent = `Selected file: ${file.name}`;
-        setSttStatus("Loaded");
-      });
-
-      recordStart.addEventListener("click", async () => {
-        try {
-          await startRecording();
-        } catch (error) {
-          showMessage(transcriptionError, error.message || "Could not access the microphone.");
-          setSttStatus("Error");
-        }
-      });
-
-      recordStop.addEventListener("click", () => {
-        stopRecording().catch((error) => {
-          showMessage(transcriptionError, error.message || "Could not stop recording cleanly.");
-          setSttStatus("Error");
+          hideMessage(transcriptionError);
+          hideMessage(transcriptionSuccess);
+          transcriptOutput.value = "";
+          useTranscriptButton.disabled = true;
+          sttAudioPreview.src = URL.createObjectURL(file);
+          sttAudioPreview.hidden = false;
+          recordStatus.textContent = `Selected file: ${file.name}`;
+          setSttStatus("Loaded");
         });
-      });
 
-      transcribeButton.addEventListener("click", () => {
-        transcribeAudio();
-      });
+        recordStart.addEventListener("click", async () => {
+          try {
+            await startRecording();
+          } catch (error) {
+            showMessage(transcriptionError, error.message || "Could not access the microphone.");
+            setSttStatus("Error");
+          }
+        });
 
-      useTranscriptButton.addEventListener("click", () => {
-        if (!transcriptOutput.value.trim()) {
-          return;
-        }
-        textArea.value = transcriptOutput.value;
+        recordStop.addEventListener("click", () => {
+          stopRecording().catch((error) => {
+            showMessage(transcriptionError, error.message || "Could not stop recording cleanly.");
+            setSttStatus("Error");
+          });
+        });
+
+        transcribeButton.addEventListener("click", () => {
+          transcribeAudio();
+        });
+
+        useTranscriptButton.addEventListener("click", () => {
+          if (!transcriptOutput.value.trim()) {
+            return;
+          }
+          textArea.value = transcriptOutput.value;
+          updateStats();
+          updateSsmlPreview();
+          openTab("write-tab");
+        });
+
         updateStats();
         updateSsmlPreview();
-        openTab("write-tab");
       });
-
-      updateStats();
-      updateSsmlPreview();
     </script>
   </body>
 </html>
