@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from threading import Event
+import wave
 from xml.sax.saxutils import escape
 
 import azure.cognitiveservices.speech as speechsdk
@@ -52,6 +54,17 @@ def build_ssml_preview(text: str, voice_name: str, speed: float, pitch: float) -
     )
 
 
+def get_wav_duration_seconds(audio_path: Path) -> float:
+    with wave.open(str(audio_path), "rb") as wav_file:
+        frame_rate = wav_file.getframerate()
+        frame_count = wav_file.getnframes()
+
+    if frame_rate <= 0:
+        return 0.0
+
+    return frame_count / frame_rate
+
+
 def synthesize_text_to_file(
     text: str,
     output_path: Path,
@@ -94,18 +107,37 @@ def transcribe_audio_file(audio_path: Path, recognition_language: str | None = N
         speech_config=speech_config,
         audio_config=audio_config,
     )
+    chunks: list[str] = []
+    errors: list[str] = []
+    done = Event()
 
-    result = recognizer.recognize_once_async().get()
+    def on_recognized(evt: speechsdk.SpeechRecognitionEventArgs) -> None:
+        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech and evt.result.text:
+            chunks.append(evt.result.text.strip())
 
-    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-        transcript = (result.text or "").strip()
-        if transcript:
-            return transcript
-        raise RuntimeError("Azure returned an empty transcript for the provided audio.")
+    def on_canceled(evt: speechsdk.SpeechRecognitionCanceledEventArgs) -> None:
+        if evt.reason == speechsdk.CancellationReason.Error:
+            errors.append(evt.error_details or "Unknown Azure Speech error.")
+        done.set()
 
-    if result.reason == speechsdk.ResultReason.NoMatch:
-        raise RuntimeError("No speech could be recognized from the provided audio.")
+    def on_session_stopped(evt: speechsdk.SessionEventArgs) -> None:
+        done.set()
 
-    cancellation = result.cancellation_details
-    details = cancellation.error_details or "Unknown Azure Speech error."
-    raise RuntimeError(f"Transcription failed: {details}")
+    recognizer.recognized.connect(on_recognized)
+    recognizer.canceled.connect(on_canceled)
+    recognizer.session_stopped.connect(on_session_stopped)
+
+    wait_timeout = max(10.0, min(get_wav_duration_seconds(audio_path) + 5.0, 60.0))
+
+    recognizer.start_continuous_recognition_async().get()
+    done.wait(timeout=wait_timeout)
+    recognizer.stop_continuous_recognition_async().get()
+
+    if errors:
+        raise RuntimeError(f"Transcription failed: {' | '.join(errors)}")
+
+    transcript = " ".join(chunk for chunk in chunks if chunk).strip()
+    if transcript:
+        return transcript
+
+    raise RuntimeError("No speech could be recognized from the provided audio.")
