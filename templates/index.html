@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Azure Text to Speech</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero-card">
+        <p class="eyebrow">EE471 Flask Demo</p>
+        <h1>Turn text into a spoken audio file.</h1>
+        <p class="lede">
+          Enter a sentence, choose a voice, and generate a WAV file using Azure
+          Speech Services.
+        </p>
+
+        {% if error %}
+        <div class="message error">{{ error }}</div>
+        {% endif %}
+
+        {% if success %}
+        <div class="message success">{{ success }}</div>
+        {% endif %}
+
+        <form class="tts-form" method="post" action="{{ url_for('synthesize') }}">
+          <label for="text">Text</label>
+          <textarea
+            id="text"
+            name="text"
+            rows="7"
+            placeholder="Type the text you want Azure to speak..."
+          >{{ text or '' }}</textarea>
+
+          <label for="voice">Voice name</label>
+          <input
+            id="voice"
+            name="voice"
+            type="text"
+            value="{{ default_voice }}"
+            placeholder="tr-TR-AhmetNeural"
+          />
+
+          <button type="submit">Generate Audio</button>
+        </form>
+
+        {% if audio_url %}
+        <section class="result-card">
+          <h2>Your audio is ready</h2>
+          <audio controls src="{{ audio_url }}"></audio>
+          <a class="download-link" href="{{ audio_url }}" download="{{ filename }}">
+            Download {{ filename }}
+          </a>
+        </section>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>
