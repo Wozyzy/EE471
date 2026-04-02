@@ -20,12 +20,12 @@
             <div class="brand-row">
               <div class="brand-mark">M</div>
               <span class="brand-name">Voxify</span>
-              <span class="pill pill-dark">AI Text to Speech</span>
+              <span class="pill pill-dark">AI Speech Studio</span>
             </div>
-            <h1>Convert text into natural, expressive voice.</h1>
+            <h1>Translate text and speech in one studio.</h1>
             <p class="lede">
               A polished front-end adapted from your JSX concept, now wired to a
-              Flask backend and Azure Speech synthesis.
+              Flask backend and Azure Speech services for both synthesis and transcription.
             </p>
           </div>
 
@@ -44,7 +44,7 @@
             <div class="panel">
               <div class="section-head">
                 <div>
-                  <p class="section-kicker">Text Input</p>
+                  <p class="section-kicker">Text To Speech</p>
                   <h2>Paste your script and prepare a synthesis run.</h2>
                 </div>
                 <p class="section-copy">
@@ -221,6 +221,88 @@
                 </div>
               </form>
             </div>
+
+            <div class="panel">
+              <div class="section-head">
+                <div>
+                  <p class="section-kicker">Speech To Text</p>
+                  <h2>Upload or record speech, then turn it into text.</h2>
+                </div>
+                <p class="section-copy">
+                  This panel sends a WAV file to the Flask backend, which passes
+                  it to Azure Speech Recognition and returns the transcript.
+                </p>
+              </div>
+
+              <div class="stt-grid">
+                <div class="panel panel-inner">
+                  <div class="control-group">
+                    <label class="field-label" for="recognition-language">Recognition Language</label>
+                    <select id="recognition-language" name="recognition-language">
+                      {% for item in recognition_language_options %}
+                      <option
+                        value="{{ item.id }}"
+                        {% if recognition_language == item.id %}selected{% endif %}
+                      >
+                        {{ item.name }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </div>
+
+                  <div class="upload-box">
+                    <div class="upload-title">Audio Input</div>
+                    <p class="upload-copy">
+                      Upload a WAV file or record directly from your microphone.
+                    </p>
+                    <input id="audio-file" type="file" accept=".wav,audio/wav" />
+                    <div class="record-actions">
+                      <button class="secondary-button" id="record-start" type="button">
+                        Start Recording
+                      </button>
+                      <button class="secondary-button" id="record-stop" type="button" disabled>
+                        Stop Recording
+                      </button>
+                    </div>
+                    <div class="record-status" id="record-status">
+                      Microphone idle. Upload a WAV file or start recording.
+                    </div>
+                    <audio id="stt-audio-preview" controls hidden></audio>
+                  </div>
+
+                  <div class="action-row">
+                    <button class="primary-button" id="transcribe-button" type="button">
+                      Transcribe Audio
+                    </button>
+                    <button class="secondary-button" id="use-transcript-button" type="button" disabled>
+                      Use As TTS Input
+                    </button>
+                  </div>
+                </div>
+
+                <div class="panel panel-inner">
+                  <div class="section-head compact">
+                    <div>
+                      <p class="section-kicker">Transcript Output</p>
+                      <h2>Recognition result</h2>
+                    </div>
+                    <span class="pill" id="stt-status-pill">Ready</span>
+                  </div>
+
+                  <div class="message error hidden" id="transcription-error"></div>
+                  <div class="message success hidden" id="transcription-success"></div>
+
+                  <label class="field-label" for="transcript-output">Transcript</label>
+                  <textarea
+                    id="transcript-output"
+                    class="result-textarea"
+                    rows="10"
+                    placeholder="Your transcribed text will appear here..."
+                    readonly
+                  ></textarea>
+                </div>
+              </div>
+            </div>
           </section>
 
           <aside class="side-column">
@@ -319,6 +401,26 @@
       const previewAudio = document.getElementById("preview-audio");
       const previewToggle = document.getElementById("preview-toggle");
       const waveform = document.getElementById("waveform");
+      const recognitionLanguage = document.getElementById("recognition-language");
+      const audioFileInput = document.getElementById("audio-file");
+      const sttAudioPreview = document.getElementById("stt-audio-preview");
+      const recordStart = document.getElementById("record-start");
+      const recordStop = document.getElementById("record-stop");
+      const recordStatus = document.getElementById("record-status");
+      const transcribeButton = document.getElementById("transcribe-button");
+      const transcriptOutput = document.getElementById("transcript-output");
+      const transcriptionError = document.getElementById("transcription-error");
+      const transcriptionSuccess = document.getElementById("transcription-success");
+      const useTranscriptButton = document.getElementById("use-transcript-button");
+      const sttStatusPill = document.getElementById("stt-status-pill");
+
+      let recordedAudioFile = null;
+      let recordingStream = null;
+      let recordingContext = null;
+      let recordingSource = null;
+      let recordingProcessor = null;
+      let recordingChunks = [];
+      let recordingSampleRate = 44100;
 
       function escapeXml(value) {
         return value
@@ -331,6 +433,16 @@
 
       function toPercent(value) {
         return `${Math.round((Number(value) - 1) * 100)}%`;
+      }
+
+      function showMessage(element, message) {
+        element.textContent = message;
+        element.classList.remove("hidden");
+      }
+
+      function hideMessage(element) {
+        element.textContent = "";
+        element.classList.add("hidden");
       }
 
       function setActiveVoice(card) {
@@ -353,6 +465,10 @@
           `</prosody></voice></speak>`;
       }
 
+      function setSttStatus(label) {
+        sttStatusPill.textContent = label;
+      }
+
       function updateStats() {
         const text = textArea.value.trim();
         const words = text ? text.split(/\s+/).length : 0;
@@ -364,6 +480,171 @@
       function openTab(target) {
         tabButtons.forEach((item) => item.classList.toggle("active", item.dataset.tabTarget === target));
         tabPanels.forEach((panel) => panel.classList.toggle("active", panel.id === target));
+      }
+
+      function mergeBuffers(buffers) {
+        const totalLength = buffers.reduce((sum, buffer) => sum + buffer.length, 0);
+        const result = new Float32Array(totalLength);
+        let offset = 0;
+
+        buffers.forEach((buffer) => {
+          result.set(buffer, offset);
+          offset += buffer.length;
+        });
+
+        return result;
+      }
+
+      function floatTo16BitPCM(view, offset, input) {
+        for (let index = 0; index < input.length; index += 1) {
+          const sample = Math.max(-1, Math.min(1, input[index]));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+          offset += 2;
+        }
+      }
+
+      function writeString(view, offset, value) {
+        for (let index = 0; index < value.length; index += 1) {
+          view.setUint8(offset + index, value.charCodeAt(index));
+        }
+      }
+
+      function encodeWav(samples, sampleRate) {
+        const buffer = new ArrayBuffer(44 + samples.length * 2);
+        const view = new DataView(buffer);
+
+        writeString(view, 0, "RIFF");
+        view.setUint32(4, 36 + samples.length * 2, true);
+        writeString(view, 8, "WAVE");
+        writeString(view, 12, "fmt ");
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        writeString(view, 36, "data");
+        view.setUint32(40, samples.length * 2, true);
+        floatTo16BitPCM(view, 44, samples);
+
+        return new Blob([view], { type: "audio/wav" });
+      }
+
+      async function startRecording() {
+        hideMessage(transcriptionError);
+        hideMessage(transcriptionSuccess);
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showMessage(transcriptionError, "This browser does not support microphone recording.");
+          return;
+        }
+
+        recordedAudioFile = null;
+        audioFileInput.value = "";
+        recordingChunks = [];
+
+        recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordingContext = new AudioContext();
+        recordingSampleRate = recordingContext.sampleRate;
+        recordingSource = recordingContext.createMediaStreamSource(recordingStream);
+        recordingProcessor = recordingContext.createScriptProcessor(4096, 1, 1);
+
+        recordingProcessor.onaudioprocess = (event) => {
+          const channelData = event.inputBuffer.getChannelData(0);
+          recordingChunks.push(new Float32Array(channelData));
+        };
+
+        recordingSource.connect(recordingProcessor);
+        recordingProcessor.connect(recordingContext.destination);
+
+        recordStart.disabled = true;
+        recordStop.disabled = false;
+        recordStatus.textContent = "Recording in progress...";
+        setSttStatus("Recording");
+      }
+
+      async function stopRecording() {
+        if (!recordingProcessor || !recordingContext || !recordingStream) {
+          return;
+        }
+
+        recordingProcessor.disconnect();
+        recordingSource.disconnect();
+        recordingStream.getTracks().forEach((track) => track.stop());
+        await recordingContext.close();
+
+        const mergedSamples = mergeBuffers(recordingChunks);
+        const wavBlob = encodeWav(mergedSamples, recordingSampleRate);
+        recordedAudioFile = new File([wavBlob], "recording.wav", { type: "audio/wav" });
+
+        sttAudioPreview.src = URL.createObjectURL(wavBlob);
+        sttAudioPreview.hidden = false;
+
+        recordStart.disabled = false;
+        recordStop.disabled = true;
+        recordStatus.textContent = "Recording ready. You can now transcribe it.";
+        setSttStatus("Recorded");
+
+        recordingChunks = [];
+        recordingStream = null;
+        recordingContext = null;
+        recordingSource = null;
+        recordingProcessor = null;
+      }
+
+      function getSelectedAudioFile() {
+        if (recordedAudioFile) {
+          return recordedAudioFile;
+        }
+        return audioFileInput.files && audioFileInput.files[0] ? audioFileInput.files[0] : null;
+      }
+
+      async function transcribeAudio() {
+        hideMessage(transcriptionError);
+        hideMessage(transcriptionSuccess);
+
+        const selectedFile = getSelectedAudioFile();
+        if (!selectedFile) {
+          showMessage(transcriptionError, "Choose a WAV file or record audio first.");
+          return;
+        }
+
+        if (!selectedFile.name.toLowerCase().endsWith(".wav")) {
+          showMessage(transcriptionError, "Only WAV audio files are supported in this version.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("audio_file", selectedFile);
+        formData.append("recognition_language", recognitionLanguage.value);
+
+        transcribeButton.disabled = true;
+        transcribeButton.textContent = "Transcribing...";
+        setSttStatus("Working");
+
+        try {
+          const response = await fetch("/transcribe", {
+            method: "POST",
+            body: formData,
+          });
+          const payload = await response.json();
+
+          if (!response.ok) {
+            throw new Error(payload.error || "Transcription request failed.");
+          }
+
+          transcriptOutput.value = payload.transcript || "";
+          useTranscriptButton.disabled = !payload.transcript;
+          showMessage(transcriptionSuccess, "Transcription completed successfully.");
+          setSttStatus("Done");
+        } catch (error) {
+          showMessage(transcriptionError, error.message);
+          setSttStatus("Error");
+        } finally {
+          transcribeButton.disabled = false;
+          transcribeButton.textContent = "Transcribe Audio";
+        }
       }
 
       templateButtons.forEach((button) => {
@@ -432,6 +713,54 @@
           waveform.classList.remove("playing");
         });
       }
+
+      audioFileInput.addEventListener("change", () => {
+        const file = getSelectedAudioFile();
+        recordedAudioFile = null;
+
+        if (!file) {
+          sttAudioPreview.hidden = true;
+          sttAudioPreview.removeAttribute("src");
+          recordStatus.textContent = "Microphone idle. Upload a WAV file or start recording.";
+          setSttStatus("Ready");
+          return;
+        }
+
+        sttAudioPreview.src = URL.createObjectURL(file);
+        sttAudioPreview.hidden = false;
+        recordStatus.textContent = `Selected file: ${file.name}`;
+        setSttStatus("Loaded");
+      });
+
+      recordStart.addEventListener("click", async () => {
+        try {
+          await startRecording();
+        } catch (error) {
+          showMessage(transcriptionError, error.message || "Could not access the microphone.");
+          setSttStatus("Error");
+        }
+      });
+
+      recordStop.addEventListener("click", () => {
+        stopRecording().catch((error) => {
+          showMessage(transcriptionError, error.message || "Could not stop recording cleanly.");
+          setSttStatus("Error");
+        });
+      });
+
+      transcribeButton.addEventListener("click", () => {
+        transcribeAudio();
+      });
+
+      useTranscriptButton.addEventListener("click", () => {
+        if (!transcriptOutput.value.trim()) {
+          return;
+        }
+        textArea.value = transcriptOutput.value;
+        updateStats();
+        updateSsmlPreview();
+        openTab("write-tab");
+      });
 
       updateStats();
       updateSsmlPreview();

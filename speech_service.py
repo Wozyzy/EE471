@@ -9,11 +9,29 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 DOTENV_PATH = BASE_DIR / ".env"
 DEFAULT_VOICE = "tr-TR-AhmetNeural"
+DEFAULT_RECOGNITION_LANGUAGE = "tr-TR"
+
+
+def get_speech_credentials() -> tuple[str, str]:
+    load_dotenv(dotenv_path=DOTENV_PATH)
+
+    speech_key = os.getenv("AZURE_SPEECH_KEY")
+    speech_region = os.getenv("AZURE_SPEECH_REGION")
+
+    if not speech_key or not speech_region:
+        raise RuntimeError("Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in your .env file.")
+
+    return speech_key, speech_region
 
 
 def get_default_voice() -> str:
     load_dotenv(dotenv_path=DOTENV_PATH)
     return os.getenv("AZURE_SPEECH_VOICE", DEFAULT_VOICE)
+
+
+def get_default_recognition_language() -> str:
+    load_dotenv(dotenv_path=DOTENV_PATH)
+    return os.getenv("AZURE_SPEECH_RECOGNITION_LANGUAGE", DEFAULT_RECOGNITION_LANGUAGE)
 
 
 def format_percentage(multiplier: float) -> str:
@@ -41,14 +59,8 @@ def synthesize_text_to_file(
     speed: float = 1.0,
     pitch: float = 1.0,
 ) -> Path:
-    load_dotenv(dotenv_path=DOTENV_PATH)
-
-    speech_key = os.getenv("AZURE_SPEECH_KEY")
-    speech_region = os.getenv("AZURE_SPEECH_REGION")
+    speech_key, speech_region = get_speech_credentials()
     selected_voice = voice_name or get_default_voice()
-
-    if not speech_key or not speech_region:
-        raise RuntimeError("Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in your .env file.")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -69,3 +81,31 @@ def synthesize_text_to_file(
     cancellation = result.cancellation_details
     details = cancellation.error_details or "Unknown Azure Speech error."
     raise RuntimeError(f"Synthesis failed: {details}")
+
+
+def transcribe_audio_file(audio_path: Path, recognition_language: str | None = None) -> str:
+    speech_key, speech_region = get_speech_credentials()
+    selected_language = recognition_language or get_default_recognition_language()
+
+    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+    speech_config.speech_recognition_language = selected_language
+    audio_config = speechsdk.audio.AudioConfig(filename=str(audio_path))
+    recognizer = speechsdk.SpeechRecognizer(
+        speech_config=speech_config,
+        audio_config=audio_config,
+    )
+
+    result = recognizer.recognize_once_async().get()
+
+    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        transcript = (result.text or "").strip()
+        if transcript:
+            return transcript
+        raise RuntimeError("Azure returned an empty transcript for the provided audio.")
+
+    if result.reason == speechsdk.ResultReason.NoMatch:
+        raise RuntimeError("No speech could be recognized from the provided audio.")
+
+    cancellation = result.cancellation_details
+    details = cancellation.error_details or "Unknown Azure Speech error."
+    raise RuntimeError(f"Transcription failed: {details}")
